@@ -15,6 +15,53 @@ import cv2 as cv
 IDENTITY_TRANSFORM = geometry_msgs.msg.TransformStamped()
 IDENTITY_TRANSFORM.transform.rotation.w = 1.0
 
+class ArucoTag:
+    _aruco_lengths = { # in meters
+        "default": 0.04,
+        1 : 0.1,
+        2 : 0.1
+    }
+
+    def __init__(self, id, corners, pose = None):
+        self.id = id
+        self.corners = corners
+        self.pose = pose if pose is not None else geometry_msgs.msg.Pose()
+        self.length = self._aruco_lengths.get(id, self._aruco_lengths["default"])
+
+    def pose_from_opencv(self, rvec, tvec):
+
+        self.rvec = rvec
+        self.tvec = tvec
+
+        t = tvec.flatten()
+        r = rvec.flatten()
+        angle = np.linalg.norm(r)
+        
+        if angle == 0:
+            q = tf.transformations.quaternion_about_axis(0, [1, 0, 0])  # identity rotation
+        else:
+            axis = r / angle
+            q = tf.transformations.quaternion_about_axis(angle, axis)
+        
+        self.pose.position.x = t[0]
+        self.pose.position.y = t[1]
+        self.pose.position.z = t[2]
+        self.pose.orientation.x = q[0]
+        self.pose.orientation.y = q[1]
+        self.pose.orientation.z = q[2]
+        self.pose.orientation.w = q[3]
+
+        return self.pose
+    
+    def get_marker(self) -> visualization_msgs.msg.Marker:
+        marker = visualization_msgs.msg.Marker()
+
+        marker.pose = self.pose
+        marker.id = self.id
+
+        return marker
+
+
 def pose_distance(pose1, pose2):
     p1 = np.array([pose1.position.x, pose1.position.y, pose1.position.z])
     p2 = np.array([pose2.position.x, pose2.position.y, pose2.position.z])
@@ -243,31 +290,37 @@ def main():
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
         clahe = cv.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
-        mask_height = int(gray.shape[0] * 0.3)
-        #gray[:mask_height, :] = 0
-        #frame = gray # for debugging
 
         # find Arucos positions wrt image frame
         corners, ids, rejected = cv.aruco.detectMarkers(gray, aruco_dict, parameters=aruco_params)
         #corners, ids, rejected = cv.aruco.refineDetectedMarkers(gray, aruco_dict, corners, ids, rejected, camera_k, camera_d)
-        
-        
+
+        # convert into a single list for easier sorting/searching
+        aruco_tags = [ArucoTag(id, c) for c,id in zip(corners, ids.flatten())]
+
+        # find poses of each tag
+        for a in aruco_tags:
+            rvecs, tvecs, _objPoints = cv.aruco.estimatePoseSingleMarkers(a.corners, a.length, camera_k, camera_d) # this needs to be done tag by tag because of different lengths
+            a.pose_from_opencv(rvecs, tvecs)
+
+        # get aruco poses wrt camera pose
+        #rvecs, tvecs, _objPoints = cv.aruco.estimatePoseSingleMarkers(corners, marker_length, camera_k, camera_d)
         #num_rejected = len(rejected)
         #rospy.loginfo_throttle(5.0, f"Rejected candidates: {num_rejected}")
         elapsed_ms = (rospy.Time.now() - start).to_sec() * 1000
         rospy.loginfo_throttle(30, f"Detection time: {elapsed_ms:.1f}ms")
         
-        # get aruco poses wrt camera pose
-        rvecs, tvecs, _objPoints = cv.aruco.estimatePoseSingleMarkers(corners, marker_length, camera_k, camera_d)
+        
 
         
         if ids is not None:
 
             # convert vectors to ROS poses
-            tag_poses = [cv_to_pose(r,t) for r,t in zip(rvecs, tvecs)]
+            #tag_poses = [cv_to_pose(r,t) for r,t in zip(rvecs, tvecs)]
 
-            rospy.loginfo_throttle(30, "\n".join([f"Found {len(ids)} markers (coordinate wrt camera frame)"] + [f"Marker {id[0]}: ({pose.position.x*1000:.1f}mm, {pose.position.y*1000:.1f}mm, {pose.position.z*1000:.1f}mm)" for id, pose in zip(ids, tag_poses)]))
+            #rospy.loginfo_throttle(30, "\n".join([f"Found {len(ids)} markers (coordinate wrt camera frame)"] + [f"Marker {id[0]}: ({pose.position.x*1000:.1f}mm, {pose.position.y*1000:.1f}mm, {pose.position.z*1000:.1f}mm)" for id, pose in zip(ids, tag_poses)]))
             
+            '''
             # check if origin ID found
             if origin_id in ids:
                 idx = list(ids.flatten()).index(origin_id)
@@ -290,6 +343,8 @@ def main():
             else:
                 rospy.logwarn_throttle(3*60,f"Origin Marker ID {origin_id} is obscured")
 
+            
+
             #transform poses to robot base frame of reference
             tag_poses_transformed = [apply_transforms(p, [T_ca, T_ar]) for p in tag_poses]
             # publish poses if the camera posiotion is known (otherwise the values will be innacurate)
@@ -304,9 +359,22 @@ def main():
 
                 #cv.putText(frame, f"({x:.3f}, {y:.3f}, {z:.3f})", (50, 50), cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
                 #cv.putText(frame, f"(DIST: {dist:.2f}mm)", (50, 100), cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), 2)
+
+            '''
+
+            # draw marker axes on frame
+            for a in aruco_tags:
+                frame = cv.aruco.drawAxis(frame, camera_k, camera_d, a.rvec, a.tvec, a.length)
+
+            # publish all found tags as a MarkerArray
+            marker_pub.publish([a.get_marker() for a in aruco_tags])
+
+
+
         else:
             cv.putText(frame, 'NO MARKERS DETECTED!', (50, 50), cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
 
+        # TODO: make this a publisher instead so it can be seen in RVIZ
         cv.imshow("RealSense Feed", frame)
         if cv.waitKey(1) & 0xFF == ord('q'):
             cv.destroyAllWindows()
