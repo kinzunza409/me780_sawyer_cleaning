@@ -23,12 +23,12 @@ RUN echo 'export ROSCONSOLE_COLORIZE_OUTPUT=1' >> /root/.bashrc
 RUN echo 'export ROS_MASTER_URI=http://localhost:11311' >> /root/.bashrc
 RUN echo 'export ROS_HOSTNAME=localhost' >> /root/.bashrc
 
-# NVIDIA Optimus — force rendering on discrete GPU, not Intel integrated
+# NVIDIA Optimus
 RUN echo 'export __NV_PRIME_RENDER_OFFLOAD=1' >> /root/.bashrc
 RUN echo 'export __GLX_VENDOR_LIBRARY_NAME=nvidia' >> /root/.bashrc
 RUN echo 'export NVIDIA_DRIVER_CAPABILITIES=all' >> /root/.bashrc
 
-# Fix XDG_RUNTIME_DIR warning from Qt/RViz
+# Fix XDG_RUNTIME_DIR warning
 RUN echo 'export XDG_RUNTIME_DIR=/tmp/runtime-root' >> /root/.bashrc
 
 RUN echo 'cd /workspace/ros_ws' >> /root/.bashrc
