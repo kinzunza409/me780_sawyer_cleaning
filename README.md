@@ -1,9 +1,10 @@
 # realsense_aruco
 
+ROS Noetic program for reading from Realsense camera and returning Aruco tag pose (position & orientation) using OpenCV. Also publishes transform to link camera frame, robot base link frame, and Aruco frame.
+
 ## NVIDIA Container Toolkit Setup
 
-Required to enable GPU access inside Docker containers. NVIDIA does not publish
-this package in Ubuntu's default repositories, so the repo must be added manually.
+Required to enable GPU access inside Docker containers (for using Rviz).
 
 ### 1. Add the NVIDIA Package Repository
 ```bash
