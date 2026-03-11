@@ -1,6 +1,8 @@
 FROM osrf/ros:noetic-desktop-full
 
 RUN apt-get update && apt-get install -y \
+    ros-noetic-catkin \
+    ros-noetic-ros-ign \
     ros-noetic-tf2-tools \
     ros-noetic-cv-bridge \
     ros-noetic-image-transport \
