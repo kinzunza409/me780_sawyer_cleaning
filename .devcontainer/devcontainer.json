@@ -1,5 +1,5 @@
 {
-    "name": "ROS Noetic + OpenCV",
+    "name": "Sawyer (ROS Noetic + Gazebo)",
     "build": {
         "dockerfile": "Dockerfile",
         "context": ".."

@@ -1,6 +1,4 @@
-# realsense_aruco
-
-ROS Noetic program for reading from Realsense camera and returning Aruco tag pose (position & orientation) using OpenCV. Also publishes transform to link camera frame, robot base link frame, and Aruco frame.
+# Sawyer Collaborative Cleaning
 
 ## NVIDIA Container Toolkit Setup
 
